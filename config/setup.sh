@@ -1,31 +1,90 @@
-# From https://gist.github.com/kevin-smets/8568070
-# and https://coderwall.com/p/yiot4q/setup-vim-powerline-and-iterm2-on-mac-os-x
-# and https://github.com/VundleVim/Vundle.vim
+#!/usr/bin/env bash
+# Modernized macOS dev environment setup
+# Neovim + lazy.nvim + Starship + Nerd Font
+#
+# Replaces the 2015 setup.sh. Run with: bash setup.sh
 
-# Install Homebrew
-/usr/bin/ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
+set -euo pipefail
 
-# Install vim
-brew install vim --with-python --with-ruby --with-perl
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# Install Vundler for vim plugins
-git clone https://github.com/VundleVim/Vundle.vim.git ~/.vim/bundle/Vundle.vim
-git clone git@github.com:vim-airline/vim-airline.git ~/.vim/bundle/vim-airline
-git clone git@github.com:tpope/vim-fugitive.git ~/.vim/bundle/vim-fugitive
-git clone git@github.com:vim-syntastic/syntastic.git ~/.vim/bundle/syntastic
+# ── 1. Homebrew ──────────────────────────────────────────────
+if ! command -v brew &>/dev/null; then
+    echo "Installing Homebrew..."
+    /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 
+    # Add brew to PATH for the rest of this script (Apple Silicon path)
+    if [[ -f /opt/homebrew/bin/brew ]]; then
+        eval "$(/opt/homebrew/bin/brew shellenv)"
+    fi
+else
+    echo "Homebrew already installed."
+fi
 
-# Install iterm2
-brew cask install iterm2
+# ── 2. Core tools ───────────────────────────────────────────
+echo "Installing core tools..."
+brew install neovim starship ripgrep fd
 
-# Install ZSH
-brew install zsh zsh-completions
-chsh -s $(which zsh)
+# ── 3. Nerd Font ─────────────────────────────────────────────
+echo "Installing MesloLGS Nerd Font..."
+brew install --cask font-meslo-lg-nerd-font
 
-# oh-my-zsh
-sh -c "$(curl -fsSL https://raw.github.com/robbyrussell/oh-my-zsh/master/tools/install.sh)"
+# ── 4. iTerm2 ────────────────────────────────────────────────
+if brew list --cask iterm2 &>/dev/null || [[ -d "/Applications/iTerm.app" ]]; then
+    echo "iTerm2 already installed."
+else
+    echo "Installing iTerm2..."
+    brew install --cask iterm2
+fi
 
+# ── 5. Starship prompt ──────────────────────────────────────
+# Add Starship init and vim alias to .zshrc if not already present
+if ! grep -q 'starship init zsh' ~/.zshrc 2>/dev/null; then
+    echo '' >> ~/.zshrc
+    echo '# Starship prompt' >> ~/.zshrc
+    echo 'eval "$(starship init zsh)"' >> ~/.zshrc
+    echo "Added Starship init to ~/.zshrc"
+else
+    echo "Starship init already in ~/.zshrc"
+fi
 
-echo "Thanks for configuring!"
-echo "Remember: change iterm2 colour scheme and fonts"
-echo "Remember: run 'vim +PluginInstall +qall'"
+if ! grep -q 'alias vim=nvim' ~/.zshrc 2>/dev/null; then
+    echo '' >> ~/.zshrc
+    echo '# Use Neovim as vim' >> ~/.zshrc
+    echo 'alias vim=nvim' >> ~/.zshrc
+    echo "Added vim→nvim alias to ~/.zshrc"
+else
+    echo "vim→nvim alias already in ~/.zshrc"
+fi
+
+# Copy Starship config
+mkdir -p ~/.config
+cp "${SCRIPT_DIR}/starship.toml" ~/.config/starship.toml
+echo "Copied starship.toml → ~/.config/starship.toml"
+
+# ── 6. Neovim config ────────────────────────────────────────
+NVIM_CONFIG_DIR="${HOME}/.config/nvim"
+
+if [[ -e "${NVIM_CONFIG_DIR}" ]]; then
+    if [[ -L "${NVIM_CONFIG_DIR}" ]]; then
+        echo "Removing existing nvim config symlink..."
+        rm "${NVIM_CONFIG_DIR}"
+    else
+        BACKUP="${NVIM_CONFIG_DIR}.backup.$(date +%Y%m%d%H%M%S)"
+        echo "Backing up existing nvim config → ${BACKUP}"
+        mv "${NVIM_CONFIG_DIR}" "${BACKUP}"
+    fi
+fi
+
+ln -s "${SCRIPT_DIR}/nvim" "${NVIM_CONFIG_DIR}"
+echo "Symlinked nvim config → ${NVIM_CONFIG_DIR}"
+
+# ── Done ─────────────────────────────────────────────────────
+echo ""
+echo "Setup complete!"
+echo ""
+echo "Next steps:"
+echo "  1. Open a new terminal tab — Starship prompt should render with icons"
+echo "  2. Set iTerm2 font to \"MesloLGS Nerd Font\" (Preferences → Profiles → Text)"
+echo "  3. Run 'nvim' — lazy.nvim will auto-install all plugins on first launch"
+echo "  4. Open a .py, .ts, or .rs file — Mason will auto-install the LSP server"
